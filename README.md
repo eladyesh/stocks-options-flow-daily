@@ -1,59 +1,61 @@
 # Stocks Options Flow Daily
 
-סריקה יומית של פעילות חריגה בקולים ובפוטים על מניות ו־ADR בארה״ב, עם דוח בעברית ושליחה לטלגרם.
+Daily research on unusual call and put activity in US stocks and ADRs, with English reports and Telegram delivery. All repository documentation, application messages and reports are in English.
 
-הפרויקט מבוסס על [הסקיל options-flow](https://github.com/eladyesh/stock-market-skills/tree/main/skills/options-flow). הוא פועל באופן עצמאי בתוך הריפו הזה, עם cron יומי ב־**07:47 שעון ישראל (`Asia/Jerusalem`)**, כולל התאמה לשעון קיץ. הדוח נשלח כאשר הסריקה מסתיימת. GitHub Actions עשוי להתעכב בשעת ההתחלה.
+Based on the [options-flow skill](https://github.com/eladyesh/stock-market-skills/tree/main/skills/options-flow). This project runs independently in this repository, with a daily cron at **07:47 Israel time (`Asia/Jerusalem`)**, including daylight-saving adjustments. Delivery starts when the scan finishes. GitHub Actions start times are best effort.
 
-## מה נבדק
+## What the scan covers
 
-- אוכלוסיית מניות רגילות ו־ADR לפי ספריות Nasdaq Trader, תוך סינון ETF, קרנות מזוהות, מניות בכורה, יחידות, כתבי אופציה ו־SPAC מזוהים.
-- מחזור יומי של OCC לכל שמות המניות הזמינים, מול חמשת ימי המסחר הקודמים, כנתיב גילוי רחב.
-- נתוני חוזים של בורסת Cboe C1 כנתיב גילוי נוסף: ריכוזי קולים, פוטים וחוזים בעלי מחזור גבוה. נתון זה אינו כל שוק האופציות.
-- עד 80 שרשראות אופציות מתוארכות מ־Cboe, בטווח 0–365 ימים לפקיעה, ועד 10 מניות בדוח. מספרי הכיסוי בפועל מוצגים בכל דוח.
-- לחוזים נבחרים: סוג, מימוש, פקיעה, DTE, מחזור, OI זמין, IV, Bid/Ask, מרווח, מחיר נכס הבסיס ותאריכי התצפיות.
-- בדיקה נוספת של מחזור הקולים ומחזור הפוטים לפי OCC, בנפרד, מול חמשת הימים הקודמים עבור המועמדים הסופיים.
-- לוח דוחות ודיבידנדים ציבורי של Nasdaq, עם סימון שלא אומת מול החברה עצמה.
+- Common stocks and ADRs from the official Nasdaq Trader directories, excluding identified ETFs, funds, preferred shares, units, warrants and acquisition companies.
+- Broad OCC daily equity-option activity compared with the preceding five trading sessions.
+- A second discovery route using Cboe C1 contract-volume data: call leaders, put leaders and concentrated contracts. C1 represents one exchange, not the entire US options market.
+- Up to 80 dated Cboe option chains within 0–365 days to expiration, producing up to 10 research candidates. Every report shows actual coverage.
+- Contract side, strike, expiration, DTE, volume, available open interest, implied volatility, bid/ask, spread, underlying price and observation dates.
+- Separate OCC call-volume and put-volume comparisons against their own five-session averages for the final candidates.
+- Public Nasdaq earnings and dividend calendars, explicitly labelled as provider reports rather than issuer-confirmed events.
 
-**רמת הראיות היא פעילות בשרשרת אופציות מושהית.** מחזור קולים אינו מוכיח קניות שוריות; מחזור פוטים אינו מוכיח פוזיציה דובית. אין כאן טייפ עסקאות מסונכרן, זיהוי מוסדי, sweeps מאומתים או זיהוי פתיחה/סגירה. פרמיה ששולמה אינה מחושבת ממחזור כפול מחיר אחרון. תאריך ה־OI, מכפיל החוזה ונכס המסירה אינם נמסרים במקור השרשרת, ולכן נשארים לא ידועים.
+**The evidence is delayed option-chain activity.** Call volume does not establish bullish buying, and put volume does not establish bearish positioning. This project does not identify synchronized executions, institutions, confirmed sweeps or opening/closing trades. It never labels volume multiplied by the last price as premium paid. The chain source does not document the OI date, contract multiplier or deliverable, so those fields remain unknown.
 
-## הגדרה ב־GitHub
+## GitHub setup
 
-בריפו **`eladyesh/stocks-options-flow-daily`**, תחת **Settings → Secrets and variables → Actions**, נדרשים:
+In **`eladyesh/stocks-options-flow-daily`**, open **Settings → Secrets and variables → Actions** and configure:
 
-| Secret | ערך |
+| Secret | Value |
 |---|---|
-| `TELEGRAM_BOT_TOKEN` | הטוקן המלא של הבוט מ־BotFather |
-| `TELEGRAM_CHAT_ID` | מזהה הצ׳אט הפרטי שלך מתוך `message.chat.id` ב־`getUpdates` לאחר לחיצה על Start בבוט |
+| `TELEGRAM_BOT_TOKEN` | The complete bot token from BotFather |
+| `TELEGRAM_CHAT_ID` | Your private `message.chat.id` from `getUpdates`, after pressing Start in the bot |
 
-`getMe` מחזיר את מזהה הבוט עצמו; הוא אינו מזהה הצ׳אט שלך. הפרויקט בודק זאת לפני הסריקה. אין לשמור סודות בקוד, בדוחות או בלוגים. אין צורך במפתחות לשירות נתוני שוק בתשלום.
+`getMe` returns the bot's own ID, not your chat ID. The application checks this before research. Never store secrets in code, reports or logs. No paid market-data API key is required.
 
-ב־**Actions → Daily Options Flow → Run workflow**:
+Open **Actions → Daily Options Flow → Run workflow**:
 
-| מצב | `smoke` | `send_telegram` | התנהגות |
+| Mode | `smoke` | `send_telegram` | Result |
 |---|---|---|---|
-| בדיקה מצומצמת | `true` | `false` | עד 6 שרשראות, דוח Artifact, ללא הודעות |
-| דוח מלא ללא שליחה | `false` | `false` | עד 80 שרשראות, דוח Artifact |
-| דוח מלא ושליחה | `false` | `true` | אימות צ׳אט, סריקה ושליחה מיד בסיום |
-| Cron יומי | אוטומטי | אוטומטי | סריקה ושליחה החל מ־07:47 שעון ישראל |
+| Limited source check | `true` | `false` | Up to 6 chains, report artifact, no messages |
+| Full report without delivery | `false` | `false` | Up to 80 chains, report artifact |
+| Full report and delivery | `false` | `true` | Validate the chat, scan and send after completion |
+| Daily cron | Automatic | Automatic | Scan and delivery starting at 07:47 Israel time |
 
-מצב smoke לעולם אינו שולח גם אם סומן `send_telegram`. ההרצה מותרת רק ב־`main` ובריפו הציבורי הזה.
+Smoke mode never sends messages, even when `send_telegram` is selected. The workflow runs only on `main` in this configured public repository.
 
-## הדוח והמצב השמור
+## Reports and saved state
 
-בכל הרצה נוצר Artifact עם:
+Each report run produces an artifact containing:
 
-- `report.md` — טבלת החוזים והסבר לכל מניה בעברית.
-- `report.json` — נתונים מובנים, מקורות, זמני איסוף, מגבלות ונתוני כיסוי.
-- `telegram.txt` — תוכן ההודעות לפני חלוקה לחלקים.
-- `coverage.json` — כל נתיבי המקור שנבדקו, לרבות חסימות, שגיאות ונתונים ישנים שנפסלו.
+- `report.md` — English contract table and research notes for each stock.
+- `report.json` — Structured observations, provenance, timestamps, limitations and coverage.
+- `telegram.txt` — English message content before splitting into numbered parts.
+- `coverage.json` — Source routes checked, including errors, restrictions and stale observations that were rejected.
 
-ה־cron פועל בכל יום, אבל דוח נשלח פעם אחת לכל **יום מסחר אמריקאי שהושלם**. בשבת/ראשון/חג, אם דוח יום המסחר האחרון כבר נשלח, לא נשלח עותק נוסף. זמני סגירה וחגים נפתרים באמצעות `exchange-calendars`, עם מרווח של 20 דקות לאחר הסגירה לנתונים מושהים.
+The cron executes daily, but delivery occurs once per **completed US trading session**. Weekend or holiday reruns do not resend an already delivered session. `exchange-calendars` handles market holidays and early closes, with a 20-minute post-close buffer for delayed data.
 
-היסטוריית OCC נמשכת חמש ישיבות אחורה כבר בהרצה הראשונה. היסטוריה של חוזים ספציפיים נבנית בהדרגה מהרצות קודמות; לפני שיש חמש תצפיות תואמות לא מוצג יחס היסטורי מומצא. OI אפס נותן יחס לא מוגדר, ולא אינסוף. V/OI ללא תאריך OI הוא דגל תיאורי בלבד.
+OCC history covers five previous sessions from the first run. Contract-specific history builds over subsequent runs; no historical ratio is shown until five comparable observations exist. Zero open interest makes V/OI undefined, not infinite. V/OI without a verified OI date is only a descriptive flag.
 
-## הרצה מקומית
+Source history and delivery receipts are cached between full delivery runs. The first run has to build that history and may take longer. Receipt checks mitigate repeat delivery while the cache is intact; see the operations guide for failures or cache loss.
 
-נדרש Python 3.12:
+## Local usage
+
+Use Python 3.12:
 
 ```bash
 python -m pip install -r requirements.txt
@@ -63,7 +65,7 @@ python -m options_flow run
 python -m options_flow run --symbols AAPL,MSFT,NVDA
 ```
 
-ברירת המחדל המקומית אינה שולחת הודעות. לאחר הגדרת משתני הסביבה הסודיים בערוץ מקומי מאובטח:
+Local research does not send messages by default. After securely configuring the secret environment variables:
 
 ```bash
 python -m options_flow verify-telegram
@@ -71,4 +73,4 @@ python -m options_flow run --prepare-delivery
 python -m options_flow send
 ```
 
-הספים, מגבלת השרשראות ורשימת מעקב אופציונלית נמצאים ב־`config.json`. שינוי רשימה אינו משנה את יעד הטלגרם. פרטי השיטה וההתאוששות נמצאים ב־[docs/METHODOLOGY.md](docs/METHODOLOGY.md) וב־[docs/OPERATIONS.md](docs/OPERATIONS.md).
+Thresholds, the chain limit and an optional watchlist are in `config.json`. The report language is English. Changing a watchlist does not change the Telegram destination. See [methodology](docs/METHODOLOGY.md) and [operations and recovery](docs/OPERATIONS.md) for details.

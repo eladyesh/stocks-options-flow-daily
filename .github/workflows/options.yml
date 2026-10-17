@@ -65,7 +65,7 @@ jobs:
           if [[ "$SMOKE" == 'true' ]]; then args+=(--smoke); fi
           if [[ "$SEND_TELEGRAM" == 'true' && "$SMOKE" != 'true' ]]; then args+=(--prepare-delivery); fi
           python -m options_flow run "${args[@]}"
-      - name: Send the verified Hebrew report to Telegram
+      - name: Send the verified English report to Telegram
         if: steps.research.outcome == 'success' && env.SEND_TELEGRAM == 'true' && env.SMOKE != 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

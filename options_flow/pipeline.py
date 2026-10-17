@@ -160,8 +160,11 @@ def collect(config, state_dir, *, smoke=False, symbols=None, now=None, client=No
     if candidates:
         print(f"Verifying separate call/put history and event context for {len(candidates)} candidates.", flush=True)
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        for key, value in pool.map(load_sides, side_jobs):
+        for count, (key, value) in enumerate(pool.map(load_sides, side_jobs), 1):
             side_results[key] = value
+            if count % 12 == 0 or count == len(side_jobs):
+                valid = sum(result is not None for result in side_results.values())
+                print(f"Call/put history checked: {count}/{len(side_jobs)}; valid dated observations: {valid}.", flush=True)
     for candidate in candidates:
         symbol = candidate["symbol"]
         current = side_results.get((symbol, session))
@@ -185,6 +188,7 @@ def collect(config, state_dir, *, smoke=False, symbols=None, now=None, client=No
 
     events = []
     if candidates:
+        print(f"Checking {len(event_dates)} earnings-calendar dates and {len(candidates)} dividend records.", flush=True)
         with ThreadPoolExecutor(max_workers=workers) as pool:
             for value in pool.map(get_calendar, event_dates):
                 if value:

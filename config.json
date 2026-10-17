@@ -1,6 +1,6 @@
 {
   "timezone": "Asia/Jerusalem",
-  "language": "he",
+  "language": "en",
   "max_candidates": 10,
   "max_chain_symbols": 80,
   "minimum_contract_volume": 500,

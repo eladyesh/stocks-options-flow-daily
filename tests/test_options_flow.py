@@ -191,15 +191,16 @@ class AnalysisAndReportTests(unittest.TestCase):
         self.assertEqual(results[0]["contracts"][0]["relative_volume_5_sessions"],20)
         self.assertEqual(results[0]["direction"],"direction-unknown")
 
-    def test_hebrew_report_contains_limits_dates_and_sources(self):
+    def test_english_report_contains_limits_dates_and_sources(self):
         report = example_report()
         text = "\n".join(sections(report))
         self.assertIn(SESSION,text)
-        self.assertIn("כיוון: לא ידוע",text)
-        self.assertIn("תאריך חסר",text)
-        self.assertIn("לא חושב סכום כסף שנכנס",text)
+        self.assertIn("direction: unknown",text)
+        self.assertIn("date unknown",text)
+        self.assertIn("no dollar inflow is calculated",text)
         self.assertIn("https://www.cboe.com/",text)
         self.assertIn("|",markdown(report))
+        self.assertNotRegex(text + markdown(report), r"[\u0590-\u05ff]")
 
     def test_message_utf16_size_and_numbering(self):
         report = example_report()

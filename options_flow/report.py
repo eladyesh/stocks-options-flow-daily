@@ -1,4 +1,4 @@
-"""Human-readable Hebrew report with explicit observation and inference boundaries."""
+"""English reports with explicit boundaries between observations and inferences."""
 from datetime import datetime
 from pathlib import Path
 
@@ -7,84 +7,89 @@ from .core import NY, atomic_json
 
 def fmt(value, digits=0):
     if value is None:
-        return "לא ידוע"
+        return "unknown"
     return f"{value:,.{digits}f}"
 
 
 def multiple(value):
-    return "לא זמין" if value is None else f"{value:.2f}×"
+    return "unavailable" if value is None else f"{value:.2f}×"
+
+
+def percent(value):
+    return "unknown" if value is None else f"{value * 100:.1f}%"
 
 
 def sections(report):
     stats = report["stats"]
-    intro = (f"פעילות אופציות חריגה — {report['session']}\n"
-        "נתוני שרשרת מושהים; זהות הקונה/המוכר וכיוון העסקה אינם ידועים.\n"
-        f"סינון רחב: {stats['discovered_eligible_names']:,} מניות/ADR בארה״ב; "
-        f"נבדקו {stats['chains_verified']}/{stats['chains_attempted']} שרשראות ו־{stats['eligible_contracts_checked']:,} חוזים בטווח 0–{report['thresholds']['max_dte']} ימים לפקיעה.\n"
-        f"השוואה לחמשת ימי המסחר: {report['prior_sessions'][0]} עד {report['prior_sessions'][-1]}.\n"
-        "V/OI הוא יחס לצילום ה־OI הזמין; תאריך ה־OI לא נמסר ולכן אינו אישור לפתיחת פוזיציות. "
-        "אין נתוני פרמיה ששולמה, מכפיל או נכס למסירה מאומתים; לא חושב סכום כסף שנכנס.\n"
-        f"{len(report['candidates'])} מועמדים לבדיקה; אין כאן זיהוי מאומת של זרימת קניות שורית/דובית.")
+    intro = (f"Unusual Options Activity — {report['session']}\n"
+        "Delayed chain data; buyer/seller identity and trade direction are unknown.\n"
+        f"Broad discovery: {stats['discovered_eligible_names']:,} US stocks/ADRs; "
+        f"verified {stats['chains_verified']}/{stats['chains_attempted']} chains and reviewed "
+        f"{stats['eligible_contracts_checked']:,} contracts within 0–{report['thresholds']['max_dte']} days to expiration.\n"
+        f"Five-session comparison: {report['prior_sessions'][0]} through {report['prior_sessions'][-1]}.\n"
+        "V/OI uses the available OI snapshot. Its date is not supplied, so this does not confirm new positions. "
+        "Executed premium, contract multiplier and deliverable are unverified; no dollar inflow is calculated.\n"
+        f"{len(report['candidates'])} research candidates; bullish/bearish buying flow is not established.")
     if report.get("smoke"):
-        intro = "בדיקת מקורות מצומצמת — אינה מיועדת לשליחה\n" + intro
+        intro = "Limited source check — not eligible for delivery\n" + intro
     output = [intro]
     today = datetime.fromisoformat(report["generated_at"]).astimezone(NY).date().isoformat()
     for index, candidate in enumerate(report["candidates"], 1):
-        bias = {"call-heavy":"ריכוז בקולים", "put-heavy":"ריכוז בפוטים", "mixed":"פעילות מעורבת"}[candidate["activity_bias"]]
+        bias = {"call-heavy":"Call-heavy activity", "put-heavy":"Put-heavy activity", "mixed":"Mixed activity"}[candidate["activity_bias"]]
         lines = [f"{index}. {candidate['symbol']} — {candidate['company']}",
-            f"{bias}; כיוון: לא ידוע. Spot מדווח ${fmt(candidate['spot'],2)}.",
-            f"קולים: {fmt(candidate['call_volume'])} | פוטים: {fmt(candidate['put_volume'])} | P/C חוזים: {fmt(candidate['put_call_ratio'],2)}",
-            f"מחזור OCC מול ממוצע 5 ימים: כולל {multiple(candidate['underlying_occ'].get('relative'))}; "
-            f"קולים {multiple(candidate['call_relative_volume_5_sessions'])}; פוטים {multiple(candidate['put_relative_volume_5_sessions'])}."]
+            f"{bias}; direction: unknown. Reported spot ${fmt(candidate['spot'],2)}.",
+            f"Calls: {fmt(candidate['call_volume'])} | Puts: {fmt(candidate['put_volume'])} | Contract P/C: {fmt(candidate['put_call_ratio'],2)}",
+            f"OCC activity vs. five-session average: total {multiple(candidate['underlying_occ'].get('relative'))}; "
+            f"calls {multiple(candidate['call_relative_volume_5_sessions'])}; puts {multiple(candidate['put_relative_volume_5_sessions'])}."]
         for contract in candidate["contracts"]:
-            expired = " (הפקיעה כבר חלפה)" if contract["expiration"] < today else ""
-            lines.extend([f"{'CALL' if contract['side']=='C' else 'PUT'} {contract['expiration']} ${fmt(contract['strike'],2)} — DTE {contract['dte']} ביום הנתונים{expired}",
-                f"מחזור {fmt(contract['volume'])} | OI {fmt(contract['open_interest'])} (תאריך חסר) | V/OI צילום {multiple(contract['volume_oi_snapshot_ratio'])}",
-                f"מחזור חוזה מול 5 ימים: {multiple(contract['relative_volume_5_sessions'])} "
-                f"({contract['baseline_sessions_available']}/5 תצפיות); IV {fmt(contract['iv']*100 if contract['iv'] is not None else None,1)}%.",
+            expired = " (expiration has passed)" if contract["expiration"] < today else ""
+            lines.extend([f"{'CALL' if contract['side']=='C' else 'PUT'} {contract['expiration']} ${fmt(contract['strike'],2)} — DTE {contract['dte']} on the observation date{expired}",
+                f"Volume {fmt(contract['volume'])} | OI {fmt(contract['open_interest'])} (date unknown) | Snapshot V/OI {multiple(contract['volume_oi_snapshot_ratio'])}",
+                f"Contract volume vs. five sessions: {multiple(contract['relative_volume_5_sessions'])} "
+                f"({contract['baseline_sessions_available']}/5 observations); IV {percent(contract['iv'])}.",
                 f"Bid/Ask ${fmt(contract['bid'],2)}/${fmt(contract['ask'],2)}; "
-                f"מרווח {fmt(contract['relative_spread']*100 if contract['relative_spread'] is not None else None,1)}%. "
-                f"עסקה אחרונה: {contract['last_trade_time']} ET; אין ציטוט מסונכרן לעסקה."])
+                f"spread {percent(contract['relative_spread'])}. "
+                f"Last trade: {contract['last_trade_time']} ET; no execution-synchronized quote."])
         if candidate["events"]:
-            lines.append("לוח דוחות Nasdaq: " + ", ".join(e["date"] for e in candidate["events"]) + " — לא אומת מול החברה.")
+            lines.append("Nasdaq earnings calendar: " + ", ".join(e["date"] for e in candidate["events"]) + " — not issuer-confirmed.")
         else:
-            lines.append("מועד דוחות מאומת: לא ידוע; אין להסיק שאין אירוע קרוב.")
+            lines.append("Verified earnings date: unknown; this does not rule out a nearby event.")
         if candidate.get("ex_dividend_date"):
-            lines.append("Ex-dividend לפי Nasdaq: " + candidate["ex_dividend_date"] + ".")
-        alternatives = "ייתכנו מכירת קולים, גידור בפוטים או רגליים של מרווח/גלגול."
+            lines.append("Nasdaq ex-dividend date: " + candidate["ex_dividend_date"] + ".")
+        alternatives = "Call selling, put hedging, spread legs or position rolls are possible."
         if any(c["dte"] <= 2 for c in candidate["contracts"]):
-            alternatives += " סמיכות לפקיעה יכולה להסביר סגירה או גלגול."
+            alternatives += " Near-term expiration may explain closing or rolling activity."
         if candidate["events"]:
-            alternatives += " אירוע דוחות עשוי להעלות פעילות ו־IV."
-        lines.append("הסבר חלופי: " + alternatives)
-        evidence = ("נמוכה — ציטוט רחב, ללא ביקוש או לא תקין; קשה לפרש את המחיר והפעילות" if candidate.get("weak_quote") else
-            "בינונית — מקור מתוארך ובסיס מחזור השוואתי" if candidate["confidence"] == "Medium" else
-            "נמוכה — דגל V/OI ללא תאריך OI ובסיס היסטורי מספק")
-        lines.extend(["איכות ראיות: " + evidence + "; אין זיהוי קנייה או פתיחה.", "מקור: " + candidate["source_url"]])
+            alternatives += " Earnings may increase activity and implied volatility."
+        lines.append("Alternative explanation: " + alternatives)
+        evidence = ("Low — wide, zero-bid or invalid quote limits interpretation" if candidate.get("weak_quote") else
+            "Medium — dated source and comparable volume baseline" if candidate["confidence"] == "Medium" else
+            "Low — snapshot V/OI without a dated OI or sufficient historical baseline")
+        lines.extend(["Evidence quality: " + evidence + "; buying and opening are unverified.", "Source: " + candidate["source_url"]])
         output.append("\n".join(lines))
     if not report["candidates"]:
-        output.append("לא נמצאו מועמדים שעומדים בספי הדוח בשרשראות שנבדקו. זו אינה קביעה שאין פעילות חריגה במניות שלא נבדקו.")
-    output.append(f"מגבלות כיסוי: {stats['discovered_names_not_chain_reviewed']:,} שמות שהתגלו לא נבדקו ברמת שרשרת; "
-        f"{stats['chains_unavailable']} שרשראות לא זמינות/לא עדכניות, {stats['sources_unavailable']} בקשות מקור לא הושלמו.\n"
-        "מקורות הגילוי: OCC (מחזור לפי סוג חשבון) ו־Cboe C1 (בורסה אחת). היחסים ההיסטוריים מחושבים בתוך אותו מקור; לא מחברים אותם למחזורי השרשרת.\n"
-        "הבדיקה הבאה: לאמת תנאי חוזה, תאריך OI והשינוי לאחר יום המסחר הבא; נדרש מידע עסקאות מסונכרן כדי להסיק מי יזם קנייה/מכירה.\n"
-        "מקורות ונתוני כיסוי מלאים נשמרו בקובצי הדוח של ההרצה.\n"
+        output.append("No candidates met the report thresholds in the reviewed chains. Unreviewed stocks may still have unusual activity.")
+    output.append(f"Coverage limits: {stats['discovered_names_not_chain_reviewed']:,} discovered names were not reviewed at chain level; "
+        f"{stats['chains_unavailable']} chains unavailable/stale and {stats['sources_unavailable']} source requests unsuccessful.\n"
+        "Discovery sources: OCC account-volume data and Cboe C1, a single exchange. Historical ratios use the same source and units; these counts are not added to chain volume.\n"
+        "Next verification: confirm contract terms, the OI as-of date and subsequent OI changes. A synchronized execution tape is needed to infer the initiating buyer/seller.\n"
+        "Full source provenance and coverage are saved in this run's report artifacts.\n"
         "https://github.com/eladyesh/stocks-options-flow-daily/actions")
     return output
 
 
 def markdown(report):
     blocks = sections(report)
-    table = ["| מניה | חוזה / DTE | תאריך / רמת נתון | מחזור / OI / תאריך OI | פרמיה / מכפיל | חריגות | כיוון / איכות | אירוע / הסבר חלופי | מקור |",
+    table = ["| Stock | Contract / DTE | Date / evidence level | Volume / OI / OI date | Premium / multiplier | Unusual activity | Direction / quality | Alternative explanation | Source |",
              "|---|---|---|---|---|---|---|---|---|"]
     for candidate in report["candidates"]:
         for contract in candidate["contracts"]:
             table.append(f"| {candidate['symbol']} | {contract['side']} {contract['expiration']} ${contract['strike']:g}; DTE {contract['dte']} "
-                f"| {report['session']}; chain-level | {fmt(contract['volume'])} / {fmt(contract['open_interest'])} / לא ידוע "
-                f"| לא ידוע / לא נמסר | V/OI צילום {multiple(contract['volume_oi_snapshot_ratio'])}; "
-                f"מחזור חוזה ×5d {multiple(contract['relative_volume_5_sessions'])} | לא ידוע / {candidate['confidence']} "
-                f"| גידור / מרווח / גלגול אפשריים | [Cboe]({candidate['source_url']}) |")
-    return "# דוח פעילות אופציות\n\n" + blocks[0] + "\n\n" + "\n".join(table) + "\n\n" + "\n\n---\n\n".join(blocks[1:]) + "\n"
+                f"| {report['session']}; chain-level | {fmt(contract['volume'])} / {fmt(contract['open_interest'])} / unknown "
+                f"| unknown / not supplied | Snapshot V/OI {multiple(contract['volume_oi_snapshot_ratio'])}; "
+                f"contract volume vs. 5d {multiple(contract['relative_volume_5_sessions'])} | unknown / {candidate['confidence']} "
+                f"| Possible hedge / spread / roll | [Cboe]({candidate['source_url']}) |")
+    return "# Options Activity Report\n\n" + blocks[0] + "\n\n" + "\n".join(table) + "\n\n" + "\n\n---\n\n".join(blocks[1:]) + "\n"
 
 
 def save(report, output):
