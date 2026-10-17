@@ -190,9 +190,11 @@ def collect(config, state_dir, *, smoke=False, symbols=None, now=None, client=No
     if candidates:
         print(f"Checking {len(event_dates)} earnings-calendar dates and {len(candidates)} dividend records.", flush=True)
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            for value in pool.map(get_calendar, event_dates):
+            for count, value in enumerate(pool.map(get_calendar, event_dates), 1):
                 if value:
                     events.append(value)
+                if count % 3 == 0 or count == len(event_dates):
+                    print(f"Earnings dates checked: {count}/{len(event_dates)}; available: {len(events)}.", flush=True)
     for candidate in candidates:
         for calendar in events:
             for row in calendar["rows"]:
@@ -200,19 +202,26 @@ def collect(config, state_dir, *, smoke=False, symbols=None, now=None, client=No
                     candidate["events"].append({"kind":"earnings", "date":calendar["date"],
                         "time":row.get("time"), "evidence":"Nasdaq calendar listing; issuer confirmation not obtained",
                         "source":calendar["source"], "source_url":"https://www.nasdaq.com/market-activity/earnings?date=" + calendar["date"]})
+
+    def get_dividends(candidate):
         symbol = candidate["symbol"]
-        dividends = collector.fetch(f"Nasdaq dividend calendar {symbol}",
+        return collector.fetch(f"Nasdaq dividend calendar {symbol}",
             "https://api.nasdaq.com/api/quote/" + quote(symbol, safe="") + "/dividends?assetclass=stocks",
             lambda d:d.json().get("data") or {})
-        if dividends and dividends.get("exDividendDate"):
-            try:
-                ex_date = datetime.strptime(dividends["exDividendDate"], "%m/%d/%Y").date().isoformat()
-                candidate["last_reported_ex_dividend_date"] = ex_date
-                candidate["dividend_source"] = dividends["source"]
-                if ex_date >= session:
-                    candidate["ex_dividend_date"] = ex_date
-            except ValueError:
-                pass
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for count, (candidate, dividends) in enumerate(zip(candidates, pool.map(get_dividends, candidates)), 1):
+            if dividends and dividends.get("exDividendDate"):
+                try:
+                    ex_date = datetime.strptime(dividends["exDividendDate"], "%m/%d/%Y").date().isoformat()
+                    candidate["last_reported_ex_dividend_date"] = ex_date
+                    candidate["dividend_source"] = dividends["source"]
+                    if ex_date >= session:
+                        candidate["ex_dividend_date"] = ex_date
+                except ValueError:
+                    pass
+            if count % 5 == 0 or count == len(candidates):
+                print(f"Dividend records checked: {count}/{len(candidates)}.", flush=True)
 
     stats = {"listed_eligible_names":len(names), "occ_names_screened":len(occ_stats),
         "occ_exchange_root_records":occ.get(session, {}).get("records", 0),

@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 from options_flow.analysis import baseline, choose_symbols, evaluate_chains
 from options_flow.core import UTC, completed_sessions, count, number, ratio
 from options_flow.http import Download, validate_url
-from options_flow.pipeline import calendar_rows
+from options_flow.pipeline import Collector, calendar_rows
 from options_flow.report import markdown, sections
 from options_flow.sources import aliases, parse_chain, parse_directory, parse_occ_xml, parse_occ_sides, parse_cboe_symbols
 from options_flow.telegram import Telegram, TelegramRejected, deliver, messages, units
@@ -157,6 +157,17 @@ class SourceTests(unittest.TestCase):
         for url in ["http://cdn.cboe.com/a", "https://localhost/a", "https://127.0.0.1", "https://user:secret@cdn.cboe.com/a", "https://cdn.cboe.com:8443/a"]:
             with self.subTest(url=url),self.assertRaises(ValueError):validate_url(url)
         validate_url("https://cdn.cboe.com/api/global/delayed_quotes/options/AAPL.json")
+
+    def test_optional_context_timeout_is_recorded_without_retry_or_abort(self):
+        collector = Collector()
+        with patch("options_flow.http.build_opener") as opener, patch("options_flow.http.time.sleep"):
+            opener.return_value.open.side_effect = TimeoutError("provider did not respond")
+            result = collector.fetch("Nasdaq earnings", "https://api.nasdaq.com/api/calendar/earnings?date=2026-10-16", lambda d:d.json())
+        self.assertIsNone(result)
+        self.assertEqual(collector.coverage[0]["status"], "unavailable")
+        self.assertIn("timed out", collector.coverage[0]["reason"])
+        self.assertEqual(opener.return_value.open.call_count, 1)
+        self.assertLessEqual(opener.return_value.open.call_args.kwargs["timeout"], 15)
 
 
 class AnalysisAndReportTests(unittest.TestCase):

@@ -51,24 +51,27 @@ class Client:
     def get(self, url, max_bytes=35_000_000):
         validate_url(url)
         host = urlsplit(url).hostname
-        for attempt in range(2):
+        # Optional event context must not hold the primary options report for minutes.
+        optional_context = host == "api.nasdaq.com"
+        attempts, timeout = (1, 15) if optional_context else (2, 35)
+        for attempt in range(attempts):
             with self.locks[host]:
                 delay = max(0, self.last.get(host, 0) + .35 - time.monotonic())
                 time.sleep(delay)
                 self.last[host] = time.monotonic()
             try:
                 request = Request(url, headers={"User-Agent":USER_AGENT, "Accept":"application/json,text/csv,application/xml,text/plain"})
-                with build_opener(PublicRedirects()).open(request, timeout=35) as response:
+                with build_opener(PublicRedirects()).open(request, timeout=timeout) as response:
                     body = response.read(max_bytes + 1)
                     if len(body) > max_bytes:
                         raise ValueError("Public response exceeded size limit")
                     return Download(body, response.url, iso(), response.headers.get("Last-Modified"))
             except HTTPError as exc:
                 # Stop on access restrictions/rate limits; do not change identities/routes to evade them.
-                if exc.code not in (500, 502, 503, 504) or attempt:
+                if exc.code not in (500, 502, 503, 504) or attempt == attempts - 1:
                     raise RuntimeError(f"Public source HTTP {exc.code}") from None
             except (TimeoutError, OSError):
-                if attempt:
+                if attempt == attempts - 1:
                     raise RuntimeError("Public source unavailable or timed out") from None
             time.sleep(1)
         raise RuntimeError("Public source unavailable")
