@@ -1,0 +1,16 @@
+{
+  "timezone": "Asia/Jerusalem",
+  "language": "he",
+  "max_candidates": 10,
+  "max_chain_symbols": 80,
+  "minimum_contract_volume": 500,
+  "volume_oi_flag": 3.0,
+  "relative_volume_flag": 3.0,
+  "minimum_occ_account_volume": 10000,
+  "minimum_occ_baseline": 1000,
+  "max_dte": 365,
+  "baseline_sessions": 5,
+  "http_workers": 4,
+  "event_calendar_days": 8,
+  "watchlist": []
+}

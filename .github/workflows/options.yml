@@ -1,0 +1,89 @@
+name: Daily Options Flow
+
+on:
+  schedule:
+    - cron: '47 7 * * *'
+      timezone: Asia/Jerusalem
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: Limited live source check (never sends Telegram)
+        type: boolean
+        default: true
+      send_telegram:
+        description: Send the full report to the configured private Telegram chat
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: options-flow-daily
+  cancel-in-progress: false
+
+jobs:
+  report:
+    if: >-
+      !github.event.repository.private &&
+      github.repository == 'eladyesh/stocks-options-flow-daily' &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONUNBUFFERED: '1'
+      SMOKE: ${{ inputs.smoke || false }}
+      SEND_TELEGRAM: ${{ github.event_name == 'schedule' || inputs.send_telegram }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Verify this repository's private Telegram destination
+        if: env.SEND_TELEGRAM == 'true' && env.SMOKE != 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m options_flow verify-telegram
+      - name: Install exchange calendar
+        run: python -m pip install -r requirements.txt
+      - name: Restore source history and delivery receipts
+        id: history
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: state/
+          key: options-flow-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: options-flow-state-v1-
+      - name: Scan unusual call and put activity
+        id: research
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          if [[ "$SMOKE" == 'true' ]]; then args+=(--smoke); fi
+          if [[ "$SEND_TELEGRAM" == 'true' && "$SMOKE" != 'true' ]]; then args+=(--prepare-delivery); fi
+          python -m options_flow run "${args[@]}"
+      - name: Send the verified Hebrew report to Telegram
+        if: steps.research.outcome == 'success' && env.SEND_TELEGRAM == 'true' && env.SMOKE != 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m options_flow send
+      - name: Preserve history and receipts, including uncertain sends
+        if: >-
+          always() && steps.history.outcome == 'success' &&
+          env.SEND_TELEGRAM == 'true' && env.SMOKE != 'true'
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: state/
+          key: options-flow-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Retain report and source coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: options-flow-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/
+          retention-days: 14
+          if-no-files-found: warn

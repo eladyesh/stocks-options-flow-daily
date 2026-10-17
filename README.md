@@ -1,5 +1,74 @@
-# Stock Options Flow Daily
+# Stocks Options Flow Daily
 
-Daily research into unusual activity in US-listed equity options, based on the `options-flow` skill in [stock-market-skills](https://github.com/eladyesh/stock-market-skills/tree/main/skills/options-flow).
+סריקה יומית של פעילות חריגה בקולים ובפוטים על מניות ו־ADR בארה״ב, עם דוח בעברית ושליחה לטלגרם.
 
-Implementation in progress. The project will use free public data, distinguish delayed chain activity from verified trade-level flow, and deliver its report through this repository's Telegram configuration. Daily schedule: 07:47 Asia/Jerusalem.
+הפרויקט מבוסס על [הסקיל options-flow](https://github.com/eladyesh/stock-market-skills/tree/main/skills/options-flow). הוא פועל באופן עצמאי בתוך הריפו הזה, עם cron יומי ב־**07:47 שעון ישראל (`Asia/Jerusalem`)**, כולל התאמה לשעון קיץ. הדוח נשלח כאשר הסריקה מסתיימת. GitHub Actions עשוי להתעכב בשעת ההתחלה.
+
+## מה נבדק
+
+- אוכלוסיית מניות רגילות ו־ADR לפי ספריות Nasdaq Trader, תוך סינון ETF, קרנות מזוהות, מניות בכורה, יחידות, כתבי אופציה ו־SPAC מזוהים.
+- מחזור יומי של OCC לכל שמות המניות הזמינים, מול חמשת ימי המסחר הקודמים, כנתיב גילוי רחב.
+- נתוני חוזים של בורסת Cboe C1 כנתיב גילוי נוסף: ריכוזי קולים, פוטים וחוזים בעלי מחזור גבוה. נתון זה אינו כל שוק האופציות.
+- עד 80 שרשראות אופציות מתוארכות מ־Cboe, בטווח 0–365 ימים לפקיעה, ועד 10 מניות בדוח. מספרי הכיסוי בפועל מוצגים בכל דוח.
+- לחוזים נבחרים: סוג, מימוש, פקיעה, DTE, מחזור, OI זמין, IV, Bid/Ask, מרווח, מחיר נכס הבסיס ותאריכי התצפיות.
+- בדיקה נוספת של מחזור הקולים ומחזור הפוטים לפי OCC, בנפרד, מול חמשת הימים הקודמים עבור המועמדים הסופיים.
+- לוח דוחות ודיבידנדים ציבורי של Nasdaq, עם סימון שלא אומת מול החברה עצמה.
+
+**רמת הראיות היא פעילות בשרשרת אופציות מושהית.** מחזור קולים אינו מוכיח קניות שוריות; מחזור פוטים אינו מוכיח פוזיציה דובית. אין כאן טייפ עסקאות מסונכרן, זיהוי מוסדי, sweeps מאומתים או זיהוי פתיחה/סגירה. פרמיה ששולמה אינה מחושבת ממחזור כפול מחיר אחרון. תאריך ה־OI, מכפיל החוזה ונכס המסירה אינם נמסרים במקור השרשרת, ולכן נשארים לא ידועים.
+
+## הגדרה ב־GitHub
+
+בריפו **`eladyesh/stocks-options-flow-daily`**, תחת **Settings → Secrets and variables → Actions**, נדרשים:
+
+| Secret | ערך |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | הטוקן המלא של הבוט מ־BotFather |
+| `TELEGRAM_CHAT_ID` | מזהה הצ׳אט הפרטי שלך מתוך `message.chat.id` ב־`getUpdates` לאחר לחיצה על Start בבוט |
+
+`getMe` מחזיר את מזהה הבוט עצמו; הוא אינו מזהה הצ׳אט שלך. הפרויקט בודק זאת לפני הסריקה. אין לשמור סודות בקוד, בדוחות או בלוגים. אין צורך במפתחות לשירות נתוני שוק בתשלום.
+
+ב־**Actions → Daily Options Flow → Run workflow**:
+
+| מצב | `smoke` | `send_telegram` | התנהגות |
+|---|---|---|---|
+| בדיקה מצומצמת | `true` | `false` | עד 6 שרשראות, דוח Artifact, ללא הודעות |
+| דוח מלא ללא שליחה | `false` | `false` | עד 80 שרשראות, דוח Artifact |
+| דוח מלא ושליחה | `false` | `true` | אימות צ׳אט, סריקה ושליחה מיד בסיום |
+| Cron יומי | אוטומטי | אוטומטי | סריקה ושליחה החל מ־07:47 שעון ישראל |
+
+מצב smoke לעולם אינו שולח גם אם סומן `send_telegram`. ההרצה מותרת רק ב־`main` ובריפו הציבורי הזה.
+
+## הדוח והמצב השמור
+
+בכל הרצה נוצר Artifact עם:
+
+- `report.md` — טבלת החוזים והסבר לכל מניה בעברית.
+- `report.json` — נתונים מובנים, מקורות, זמני איסוף, מגבלות ונתוני כיסוי.
+- `telegram.txt` — תוכן ההודעות לפני חלוקה לחלקים.
+- `coverage.json` — כל נתיבי המקור שנבדקו, לרבות חסימות, שגיאות ונתונים ישנים שנפסלו.
+
+ה־cron פועל בכל יום, אבל דוח נשלח פעם אחת לכל **יום מסחר אמריקאי שהושלם**. בשבת/ראשון/חג, אם דוח יום המסחר האחרון כבר נשלח, לא נשלח עותק נוסף. זמני סגירה וחגים נפתרים באמצעות `exchange-calendars`, עם מרווח של 20 דקות לאחר הסגירה לנתונים מושהים.
+
+היסטוריית OCC נמשכת חמש ישיבות אחורה כבר בהרצה הראשונה. היסטוריה של חוזים ספציפיים נבנית בהדרגה מהרצות קודמות; לפני שיש חמש תצפיות תואמות לא מוצג יחס היסטורי מומצא. OI אפס נותן יחס לא מוגדר, ולא אינסוף. V/OI ללא תאריך OI הוא דגל תיאורי בלבד.
+
+## הרצה מקומית
+
+נדרש Python 3.12:
+
+```bash
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python -m options_flow run --smoke
+python -m options_flow run
+python -m options_flow run --symbols AAPL,MSFT,NVDA
+```
+
+ברירת המחדל המקומית אינה שולחת הודעות. לאחר הגדרת משתני הסביבה הסודיים בערוץ מקומי מאובטח:
+
+```bash
+python -m options_flow verify-telegram
+python -m options_flow run --prepare-delivery
+python -m options_flow send
+```
+
+הספים, מגבלת השרשראות ורשימת מעקב אופציונלית נמצאים ב־`config.json`. שינוי רשימה אינו משנה את יעד הטלגרם. פרטי השיטה וההתאוששות נמצאים ב־[docs/METHODOLOGY.md](docs/METHODOLOGY.md) וב־[docs/OPERATIONS.md](docs/OPERATIONS.md).
